@@ -1,0 +1,392 @@
+---
+title: "FE582 Assignment 3"
+author: "Mugdha"
+date: "11/9/2020"
+output: pdf_document
+---
+
+## Problem 1
+**a) Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?**
+
+**\textcolor{red}{Solution:}** 
+```{r}
+library(class)    # for KNN
+library(ISLR)     # for Data
+library(MASS)     # for LDA
+library(tree)
+
+head(Weekly)
+summary(Weekly)
+cor(Weekly[, -9])
+pairs(Weekly)
+
+```
+**\textcolor{red}{Observations:}** 
+**The Summary statistics and Scatter plot don't provide any obvious patterns except that the Volume of shares traded each week has grown quite a lot over the years and flattened out in recent years.**
+**The previous 5 weeks’ rate of returns have no correlation with any other variables as indicated by pairwise correlation plots as well as correlation coefficient numbers close to 0.**
+
+**b)Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?**
+
+**\textcolor{red}{Solution:}** 
+```{r}
+
+glm.fit = glm(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly, family=binomial)
+summary(glm.fit)
+```
+**\textcolor{red}{Significant predictors:}**
+**Out of the 6 predictors,Lag2 is the only significant predictor of the “direction” as it has p-value less than significance level of 0.05.**
+
+**c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.**
+**\textcolor{red}{Solution:}**
+```{r}
+glm.probs = predict(glm.fit, type="response")
+glm.preds = rep("Down", 1089)
+glm.preds[glm.probs > 0.5] = "Up"
+table(glm.preds, Weekly$Direction)
+
+plot(glm.probs, col= ifelse(Weekly$Direction=="Down", "red","green"), pch=16)
+abline(h = 0.5, lwd= 3)
+```
+**\textcolor{red}{Observations:}** 
+**The logistic regression model using the five lag variables along with Volume as the predictors, and a prediction threshold of 0.5, correctly predicted 54 down weeks out of a total of 484 actual down weeks and 557 up days out of a total of 605 actual up weeks.**
+**56.1% of the responses are predicted correctly.Training error rate = 43.89%, overly optimistic.For weeks when the market goes down, the model is right only 11.1570248% of the time (54/(54+430)).**
+
+**d) Now fit the logistic regression model using a training data period from 1990 to 2008,with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).**
+
+**\textcolor{red}{Solution:}**
+```{r}
+training.data = Weekly[Weekly$Year<2009,]
+test.data = Weekly[Weekly$Year>2008,]
+simpglm = glm(Direction~Lag2, data= training.data, family = "binomial")
+summary(simpglm)
+
+testprobs = predict(simpglm, type="response", newdata = test.data)
+testdirs = Weekly$Direction[Weekly$Year>2008]
+plot(testprobs, col= ifelse(Weekly$Direction[Weekly$Year>2008]=="Down", "red","green"), pch=16)
+abline(h = 0.5, lwd= 3)
+
+testpreds = rep("Down", 104)
+testpreds[testprobs>0.5] = "Up"
+#mean(probs)
+table(testpreds, testdirs)
+```
+**\textcolor{red}{Observations:}** 
+**Using only Lag2 as the predictor, the model correctly predicted the market direction for 62.5% of the weeks in the data**
+**We could also say that for weeks when the market goes up, the model is right 91.8032787% of the time (56/(56+5)). For weeks when the market goes down, the model is right only 20.9302326% of the time (9/(9+34)).**
+
+**e) Repeat d) using LDA**
+
+**\textcolor{red}{Solution:}**
+```{r}
+lda.fit = lda(Direction~Lag2, data= training.data)
+lda.fit
+
+lda.pred = predict(lda.fit, newdata=test.data, type="response")
+lda.class = lda.pred$class
+table(lda.class, test.data$Direction)
+```
+**\textcolor{red}{Observations:}** 
+**Our classifier still says that most of the samples go Up. the percentage of correct predictions on the test data is 62.5%.Error rate is 37.5%.These results are very close to those obtained with the logistic regression model**
+
+**f) Repeat d) using QDA**
+
+**\textcolor{red}{Solution:}**
+```{r}
+qda.fit = qda(Direction~Lag2, data= training.data)
+qda.fit
+
+qda.pred = predict(qda.fit, newdata=test.data, type="response")
+qda.class = qda.pred$class
+table(qda.class, test.data$Direction)
+```
+**\textcolor{red}{Observations:}** 
+**The error rate for the QDA is the worst out of all the models: 41,35%.For weeks when the market goes up, the model is right 100% of the time. For weeks when the market goes down, the model is right 0% of the time.**
+
+**g) Repeat d) using KNN with K = 1**
+
+**\textcolor{red}{Solution:}**
+```{r}
+set.seed(1)
+train.X = cbind(training.data$Lag2)
+test.X = cbind(test.data$Lag2)
+train.Y = cbind(training.data$Direction)
+knn.pred = knn(train.X, test.X, train.Y, k=1)
+table(knn.pred, test.data$Direction)
+```
+**\textcolor{red}{Observations:}**
+**The percentage of correct predictions on the test data is 50%.So, 50% is the test error rate. Also, for weeks when the market goes up, the model is right 50.8196721% of the time. For weeks when the market goes down, the model is right only 48.8372093% of the time.**
+
+**h) Which of these methods appears to provide the best results on this data?**
+
+**\textcolor{red}{Solution:}**
+**If we compare the test error rates,logistic regression and LDA have the minimum error rates, followed by QDA and KNN.**
+
+**i) Experiment with different combinations of predictors, including possible transformations and interactions, for each of the methods. Report the variables,method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+knn3.pred = knn(train.X, test.X, train.Y, k=3)
+table(knn3.pred, test.data$Direction)
+
+knn3.pred = knn(train.X, test.X, train.Y, k=15)
+table(knn3.pred, test.data$Direction)
+
+qda.fit2 = qda(Direction~Lag1 + Lag2 + Lag4, data= training.data)
+qda.fit2
+
+qda.pred2 = predict(qda.fit2, newdata=test.data, type="response")
+qda.class2 = qda.pred2$class
+table(qda.class2, test.data$Direction)
+
+lda.fit2 = lda(Direction~Lag1 + Lag2 + Lag4, data= training.data)
+lda.fit2
+
+lda.pred2 = predict(lda.fit2, newdata=test.data, type="response")
+lda.class2 = lda.pred2$class
+table(lda.class2, test.data$Direction)
+```
+**\textcolor{red}{Observations:}**
+
+**In these cases,the models are not much better than with only Lag2 as predictor**
+
+## Problem2
+
+**a) Create a binary variable, mpg01, that contains a 1 if mpg contains a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. Note you may find it helpful to use the data.frame() function to create a single data set containing both mpg01 and the other Auto variables.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+auto = Auto
+auto$mpg01 = rep(0, length(auto$mpg))
+auto$mpg01[auto$mpg>median(auto$mpg)] = 1
+```
+**b)Explore the data graphically in order to investigate the association between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mpg01? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+cor(auto[, -9])
+pairs(auto[,-9])
+par(mfrow = c(2,2))
+for(i in 1:(ncol(auto)-2)){
+        boxplot(auto[,i] ~ as.factor(auto$mpg01),
+                xlab = "Gas Mileage (0:Low, 1:High)",
+                ylab = colnames(auto)[i],
+                col = c("red","green"))
+        
+}
+```
+**\textcolor{red}{Observations:}**
+
+**Correlation plots and Boxplots are plotted to compare the overall distributions for each variables between cars with above-median mpg and those with below median-mpg.It can be observed that there is a strong negative correlation between mpg01 and Cylinders,Displacement,Weight and Horsepower.So these features are most likely to properly predict mpg01**
+
+**c) Split the data into a training set and a test set.**\
+
+**\textcolor{red}{Solution:}**
+```{r}
+train <- (auto$year %% 2 == 0)
+auto.train <- auto[train, ]
+auto.test <- auto[!train, ]
+
+```
+**d) Perform LDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in b). What is the test error of the model obtained?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+lda.fit2 = lda(mpg01~displacement+weight+cylinders+year, data=auto.train)
+lda.fit2
+pred.lda2 = predict(lda.fit2, newdata = auto.test, type="response")$class
+table(pred.lda2, auto.test$mpg01)
+mean(pred.lda2 != auto.test$mpg01)
+```
+**\textcolor{red}{Observations:}**
+
+**It can be concluded that there is a test error rate of 10.98901%.**
+
+**e) Perform QDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in b). What is the test error of the model obtained?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+qda.fit2 = qda(mpg01~displacement+weight+cylinders+year, data=auto ,subset=train)
+qda.fit2
+pred.qda2 = predict(qda.fit2, newdata = auto.test, type="response")$class
+table(pred.qda2, auto.test$mpg01)
+mean(pred.qda2 != auto.test$mpg01)
+```
+**\textcolor{red}{Observations:}**
+
+**It can be concluded that there is a test error rate of 12.08791%.**
+
+**f)Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in b).What is the test error of the model obtained?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+logisticreg = glm(mpg01~displacement+weight+cylinders+year, family="binomial", data=auto)
+summary(logisticreg)
+
+log_probs = predict(logisticreg, auto.test, type="response")
+log_preds = rep(0, dim(auto.test)[1])
+log_preds[log_probs>0.5]=1            
+table(log_preds,auto.test$mpg01 )
+mean(log_preds != auto.test$mpg01)
+
+par(mfrow=c(1,1))
+plot(log_probs, col= ifelse(auto.test$mpg01==0, "red", "blue"), pch = 16)
+abline(h=0.5, lwd=3)
+```
+**\textcolor{red}{Observations:}**
+
+**It can be concluded that there is a test error rate of 10.98901%.**
+
+**g) Perform KNN on the training data, with several values of K, in order to predict mpg01.Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+train_auto_X <- cbind(auto$cylinders, 
+                      auto$displacement, 
+                      auto$horsepower,
+                      auto$weight
+                      )[train,]
+
+test_auto_X <- cbind(
+  auto$cylinders, 
+  auto$displacement, 
+  auto$horsepower,
+  auto$weight
+)[!train,]
+
+set.seed(1)
+knn.pred2 = knn(train_auto_X, test_auto_X, auto.train$mpg01, k=1)
+tab = table(knn.pred2, auto.test$mpg01)
+error.rate = round((sum(tab[1,2], tab[2,1])/dim(auto.test)[1])*100, 2)
+paste("The error rate is of", error.rate, "%")
+
+knn.pred2 = knn(train_auto_X, test_auto_X, auto.train$mpg01, k=10)
+tab = table(knn.pred2, auto.test$mpg01)
+error.rate = round((sum(tab[1,2], tab[2,1])/dim(auto.test)[1])*100, 2)
+paste("The error rate is of", error.rate, "%")
+
+knn.pred2 = knn(train_auto_X, test_auto_X, auto.train$mpg01, k=100)
+tab = table(knn.pred2, auto.test$mpg01)
+error.rate = round((sum(tab[1,2], tab[2,1])/dim(auto.test)[1])*100, 2)
+paste("The error rate is of", error.rate, "%")
+
+```
+**\textcolor{red}{Observations:}**
+
+**The error rate is 14.29% for K=100 so this value seems to perform the best on this data set**
+
+## Problem 3
+
+**a) Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+set.seed(15)
+tr <- sample(1:nrow(OJ), 800)
+oj.tr <- OJ[tr,]
+oj.te <- OJ[-tr,]
+
+```
+**b) Fit a tree to the training data, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+tree.oj <- tree(Purchase ~., oj.tr)
+summary(tree.oj)
+```
+**\textcolor{red}{Observations:}**
+
+**The tree uses 3 variables LoyalCH,PriceDiff and ListPriceDiff for construction.It has 8 terminal nodes.Training error rate (misclassification error) for the tree is 0.1562**
+
+**c) Type in the name of the tree object in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+tree.oj
+```
+**\textcolor{red}{Observations:}**
+
+**Node 11 is a terminal node as indicated by '*'.The split criteria is PriceDiff is split on > 0.065.There are 106 points in this terminal node.The deviance is 142.30.The prediction at this node is CH. About 60.37% of the observations in this node have CH as value of Sales. The remaining 39.62% points have MM as value of Sales.**
+
+**d) Create a plot of the tree, and interpret the results**
+
+**\textcolor{red}{Solution:}**
+```{r}
+plot(tree.oj)
+text(tree.oj, pretty=0)
+```
+**\textcolor{red}{Observations:}**
+
+**Based on the plot above,the most important splitting variables is LoyalCH as first 4 splits are based on this variable.If LoyalCH<0.035,the tree predicts MM and if LoyalCH>0.753,the tree predicts CH.For intermediate values of LoyalCH,the decision depends on the value of PriceDiff and ListPriceDiff **
+
+**e)Predict the response on the test data, and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+oj.pred <-  predict(tree.oj, oj.te, type="class")
+table(oj.te$Purchase,oj.pred)
+mean( oj.te$Purchase == oj.pred)
+```
+**\textcolor{red}{Observations:}**
+**The test error rate observed is 22.9%.Also, 77% of the observations are classified correctly.**
+
+**f) Apply the cv.tree() function to the training set in order to determine the optimal tree size.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+set.seed(50)
+cv.oj <- cv.tree(tree.oj, FUN = prune.tree)
+cv.oj
+```
+**g) Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+plot(cv.oj$size, cv.oj$dev, type = "b", xlab = "Tree size", ylab = "Cross Validation Error")
+```
+**\textcolor{red}{Observations:}**
+
+**Based on the plot, tree of size 6 has the lowest cross validation error**
+
+## Problem 4
+
+**a)Create a training set consisting of the first 1,000 observations, and a test set consisting of the remaining observations.**
+
+**\textcolor{red}{Solution:}**
+```{r}
+set.seed(1)
+train <- 1:1000
+Caravan$Purchase <- ifelse(Caravan$Purchase == "Yes", 1, 0)
+Caravan.train <- Caravan[train, ]
+Caravan.test <- Caravan[-train, ]
+```
+**b) Fit a boosting model to the training set with Purchase as the response and the other variables as predictors. Use 1,000 trees, and a shrinkage value of 0.01. Which predictors appear to be the most important?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+set.seed(1)
+library(gbm)
+boost.caravan <- gbm(Purchase ~ ., data = Caravan.train, distribution = "gaussian", n.trees = 1000, shrinkage = 0.01)
+summary(boost.caravan)
+```
+**\textcolor{red}{Observations:}**
+
+**PPERSAUT and MKOOPKLA appear to be the most important predictors here.**
+
+**c) Use the boosting model to predict the response on the test data. Predict that a person will make a purchase if the estimated probability of purchase is greater than 20 %. Form a confusion matrix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results obtained from applying KNN or logistic regression to this data set?**
+
+**\textcolor{red}{Solution:}**
+```{r}
+probs.test <- predict(boost.caravan, Caravan.test, n.trees = 1000, type = "response")
+pred.test <- ifelse(probs.test > 0.2, 1, 0)
+table(Caravan.test$Purchase, pred.test)
+```
+**\textcolor{red}{Observations:}**
+
+**21.56% of people predicted to make purchase actually end up making one.(11/40+11)**
+```{r}
+logit.caravan <- glm(Purchase ~ ., data = Caravan.train, family = "binomial")
+probs.test2 <- predict(logit.caravan, Caravan.test, type = "response")
+pred.test2 <- ifelse(probs.test > 0.2, 1, 0)
+table(Caravan.test$Purchase, pred.test2)
+```
+**21.56% of people predicted to make purchase using logistic regression actually end up making one.This is in fact same as Boosting.**
